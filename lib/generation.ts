@@ -35,6 +35,7 @@ function beginError(state: BeginResult['state']): ServiceError {
     case 'monthly_limit': return new ServiceError('이번 달 생성 예산 한도에 도달했습니다.', 429, state)
     case 'scrape_paused': return new ServiceError('본문 추출 무료 사용량이 소진되었습니다.', 503, state)
     case 'not_invited': return new ServiceError('초대된 계정만 이용할 수 있습니다.', 403, state)
+    case 'not_found': return new ServiceError('저장된 요약을 찾지 못했습니다.', 404, state)
     default: return new ServiceError('생성을 시작하지 못했습니다.')
   }
 }
@@ -52,10 +53,37 @@ export async function generateForUser(userId: string, rawUrl: string, mode: 'sum
     return { state: begin.state, article: begin.article?.overview ? publicArticle(begin.article) : null }
   }
   if (begin.state !== 'started' || !begin.job_id || !begin.article || !begin.phase) throw beginError(begin.state)
+  return runGeneration(begin, url, mode, false)
+}
 
-  const jobId = begin.job_id
-  let currentArticle = begin.article
+export async function regenerateForOwner(userId: string, articleId: string) {
+  const { data: begun, error } = await adminSupabase().rpc('begin_regeneration', {
+    p_user: userId, p_article: articleId, p_summary_reserve: summaryReserveKrw(),
+  })
+  if (error) throw error
+  const begin = begun as BeginResult
+  if (begin.state === 'pending') {
+    return { state: 'pending', article: begin.article ? publicArticle(begin.article) : null }
+  }
+  if (begin.state !== 'started' || !begin.job_id || !begin.article || begin.phase !== 'summary') {
+    throw beginError(begin.state)
+  }
+  return runGeneration(begin, begin.article.normalized_url, 'summary', true)
+}
+
+async function runGeneration(begin: BeginResult, url: string, mode: 'summary' | 'both', regeneration: boolean) {
+  const jobId = begin.job_id!
+  const admin = adminSupabase()
+  let currentArticle = begin.article!
   let incurredKrw = 0
+  const previousAudioPath = regeneration ? currentArticle.audio_path : null
+  const finish = async (saved: Article) => {
+    if (previousAudioPath) {
+      try { await admin.storage.from('readly-audio').remove([previousAudioPath]) }
+      catch { /* The new summary is already committed; an orphaned file can be cleaned up later. */ }
+    }
+    return { state: 'created', article: publicArticle(saved) }
+  }
   try {
     if (begin.phase === 'summary') {
       const source = await scrapeArticle(url)
@@ -69,7 +97,7 @@ export async function generateForUser(userId: string, rawUrl: string, mode: 'sum
       if (error) throw error
       currentArticle = data.article as Article
       incurredKrw = 0 // The database now owns this cost and the daily charge.
-      if (data.phase === 'done') return { state: 'created', article: publicArticle(currentArticle) }
+      if (data.phase === 'done') return finish(currentArticle)
     }
 
     const text = speechText({ overview: currentArticle.overview!, points: currentArticle.points! })
@@ -94,24 +122,25 @@ export async function generateForUser(userId: string, rawUrl: string, mode: 'sum
     const external = error instanceof ExternalError ? error : null
     // Reconcile a summary commit whose RPC response was lost before charging
     // its cost again or reporting that the summary disappeared.
-    if (!currentArticle.overview) {
+    if (!currentArticle.overview || regeneration) {
       const [{ data: saved }, { data: job }] = await Promise.all([
         admin.from('articles').select(articleFields).eq('id', currentArticle.id).maybeSingle(),
-        admin.from('generation_jobs').select('charged').eq('id', jobId).maybeSingle(),
+        admin.from('generation_jobs').select('charged,status').eq('id', jobId).maybeSingle(),
       ])
       if (saved?.overview) currentArticle = saved as Article
       if (job?.charged) incurredKrw = 0
+      if (regeneration && job?.charged && job.status === 'done') return finish(currentArticle)
     }
     const amount = incurredKrw + (external?.incurredKrw || 0)
     await admin.rpc('fail_generation', {
       p_job: jobId, p_incurred_krw: amount,
       p_pause_firecrawl: Boolean(external?.firecrawlQuota),
     })
-    if (mode === 'summary' && currentArticle.overview) {
+    if (!regeneration && mode === 'summary' && currentArticle.overview) {
       return { state: 'created', article: publicArticle(currentArticle) }
     }
     // A completed summary remains available when speech or storage fails.
-    if (currentArticle.overview) {
+    if (!regeneration && currentArticle.overview) {
       return { state: 'partial', article: publicArticle(currentArticle), message: error instanceof Error ? error.message : '음성 생성에 실패했습니다.' }
     }
     if (external) throw new ServiceError(external.message, external.firecrawlQuota ? 503 : 502, 'external_failure')

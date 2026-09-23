@@ -2,6 +2,8 @@
 
 Readly는 초대된 사용자가 공개 웹 글을 한국어로 요약하고 음성으로 들을 수 있는 웹 앱입니다. 같은 URL의 요약과 음성은 사용자들이 함께 이용합니다.
 
+일반 사용자는 저장된 요약의 재생성을 요청할 수 있습니다. 방장 계정은 홈의 요청 목록에서 단건 또는 일괄 재생성하거나, 저장된 요약에서 바로 재생성할 수 있습니다. 재생성도 기존 일일·월별 생성 한도를 사용하며, 성공하면 이전 요약의 음성은 해제됩니다.
+
 ## 시작하기
 
 1. `npm install`을 실행합니다.
@@ -11,6 +13,8 @@ Readly는 초대된 사용자가 공개 웹 글을 한국어로 요약하고 음
    ```sql
    insert into public.allowed_emails(email) values (lower('person@example.com'));
    ```
+
+   [재생성 마이그레이션](supabase/migrations/202609230002_regeneration.sql)도 초기 마이그레이션 다음에 실행합니다. 방장 계정 `yoofh2006@gmail.com`을 초대 목록에 등록해야 방장 전용 재생성을 사용할 수 있습니다.
 
 4. `.env.example`을 `.env`로 복사하고 값을 채웁니다. Supabase 프로젝트의 URL과 publishable key는 공개 설정이며, secret key는 서버 전용 비밀값입니다. OpenAI와 Firecrawl 키도 서버에서만 사용합니다. 키를 채팅이나 Git에 넣지 마세요.
    기존 로컬 파일에 `OPENAPI_KEY`와 `FIRECRAWL_KEY`가 있다면 앱이 각각 OpenAI와 Firecrawl 키의 별칭으로 읽습니다. 새 설정에는 아래 표의 이름을 사용하세요.
@@ -27,7 +31,7 @@ Readly는 초대된 사용자가 공개 웹 글을 한국어로 요약하고 음
 
 ## 테스트
 
-`npm test`는 URL·비용 규칙과 실제 로컬 PostgreSQL의 동시 요청, 초대 제한, 일일·월 한도, 부분 성공을 검사합니다. PostgreSQL의 `initdb`, `pg_ctl`, `psql`이 없으면 DB 테스트는 건너뜁니다. `npm run typecheck`와 `npm run build`로 TypeScript와 프로덕션 빌드를 확인합니다.
+`npm test`는 URL·비용 규칙과 실제 로컬 PostgreSQL의 동시 요청, 초대 제한, 일일·월 한도, 부분 성공, 재생성 요청과 권한을 검사합니다. PostgreSQL의 `initdb`, `pg_ctl`, `psql`이 없으면 DB 테스트는 건너뜁니다. `npm run typecheck`와 `npm run build`로 TypeScript와 프로덕션 빌드를 확인합니다.
 
 외부 키를 설정한 뒤 `npm run smoke`로 실제 공개 글을 추출하고 OpenAI 요약·음성 생성을 확인합니다. 이 작업은 API 사용량을 소비합니다. 출력된 요약에서 원문의 핵심과 수치·조건·부정 표현이 보존됐는지 직접 확인하세요.
 

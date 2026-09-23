@@ -1,6 +1,12 @@
 import { adminSupabase, serverSupabase } from './supabase'
 import { ServiceError } from './types'
 
+export const OWNER_EMAIL = 'yoofh2006@gmail.com'
+
+export function isOwner(email: string) {
+  return email.toLowerCase() === OWNER_EMAIL
+}
+
 export async function authorizedUser() {
   const supabase = await serverSupabase()
   const { data, error } = await supabase.auth.getUser()

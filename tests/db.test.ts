@@ -11,6 +11,7 @@ const ROOT = resolve(import.meta.dirname, '..')
 const USER = '11111111-1111-4111-8111-111111111111'
 const OTHER = '22222222-2222-4222-8222-222222222222'
 const DENIED = '33333333-3333-4333-8333-333333333333'
+const OWNER = '66666666-6666-4666-8666-666666666666'
 
 function commandExists(name: string) {
   try { execFileSync('which', [name], { stdio: 'ignore' }); return true } catch { return false }
@@ -44,11 +45,17 @@ test('실제 PostgreSQL에서 초대, 재사용, 부분 성공, 한도 및 동�
     const file = join(dir, 'migration.sql')
     writeFileSync(file, migration)
     run('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-f', file])
+    writeFileSync(file, readFileSync(join(ROOT, 'supabase/migrations/202609230002_regeneration.sql'), 'utf8'))
+    run('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-f', file])
+    assert.equal(query(`select has_function_privilege('service_role',
+      'public.complete_summary(uuid,text,text,jsonb,integer,integer)', 'EXECUTE')`), 't')
     query(`insert into auth.users values
       ('${USER}', 'yes@example.com', now()),
       ('${OTHER}', 'other@example.com', now()),
-      ('${DENIED}', 'no@example.com', now());
-      insert into public.allowed_emails(email) values ('yes@example.com'), ('other@example.com');`)
+      ('${DENIED}', 'no@example.com', now()),
+      ('${OWNER}', 'yoofh2006@gmail.com', now());
+      insert into public.allowed_emails(email) values
+        ('yes@example.com'), ('other@example.com'), ('yoofh2006@gmail.com');`)
 
     const start = (user: string, url: string, mode = 'summary', summaryReserve = 50, audioReserve = 100) =>
       `select public.begin_generation('${user}', '${url}', '${mode}', ${summaryReserve}, ${audioReserve})::text`
@@ -77,6 +84,34 @@ test('실제 PostgreSQL에서 초대, 재사용, 부분 성공, 한도 및 동�
     assert.equal(parse(start(USER, 'https://example.com/b', 'both')).state, 'cached')
     assert.equal(Number(query(`select count(*) from public.generation_jobs where user_id='${USER}' and charged`)), 2)
     assert.equal(Number(query(`select count(*) from public.generation_jobs where user_id='${OTHER}' and charged`)), 1)
+
+    const requestRegeneration = (user: string, article: string) =>
+      `select public.request_regeneration('${user}', '${article}')::text`
+    const beginRegeneration = (user: string, article: string) =>
+      `select public.begin_regeneration('${user}', '${article}', 50)::text`
+    assert.equal(parse(requestRegeneration(DENIED, bundle.article.id)).state, 'not_allowed')
+    assert.equal(parse(requestRegeneration(OWNER, bundle.article.id)).state, 'not_allowed')
+    assert.equal(parse(requestRegeneration(USER, bundle.article.id)).state, 'requested')
+    assert.equal(parse(requestRegeneration(OTHER, bundle.article.id)).state, 'existing')
+    assert.equal(Number(query(`select count(*) from public.regeneration_requests where article_id='${bundle.article.id}'`)), 1)
+    assert.equal(parse(beginRegeneration(USER, bundle.article.id)).state, 'not_invited')
+    assert.throws(() => query(`set role authenticated; ${beginRegeneration(OWNER, bundle.article.id)}`))
+    const regeneration = parse(beginRegeneration(OWNER, bundle.article.id))
+    assert.equal(regeneration.phase, 'summary')
+    assert.equal(parse(beginRegeneration(OWNER, bundle.article.id)).state, 'pending')
+    assert.equal(parse(requestRegeneration(USER, bundle.article.id)).state, 'in_progress')
+    query(`select public.fail_generation('${regeneration.job_id}', 0, false)`)
+    assert.equal(query(`select overview from public.articles where id='${bundle.article.id}'`), '요지')
+    assert.equal(query(`select audio_path from public.articles where id='${bundle.article.id}'`), 'audio/b.mp3')
+    assert.equal(Number(query(`select count(*) from public.regeneration_requests where article_id='${bundle.article.id}'`)), 1)
+    const again = parse(beginRegeneration(OWNER, bundle.article.id))
+    parse(finishSummary(again.job_id, '새 요약'))
+    assert.equal(query(`select overview from public.articles where id='${bundle.article.id}'`), '새 요약')
+    assert.equal(query(`select audio_path is null from public.articles where id='${bundle.article.id}'`), 't')
+    assert.equal(Number(query(`select count(*) from public.regeneration_requests where article_id='${bundle.article.id}'`)), 0)
+    const direct = parse(beginRegeneration(OWNER, first.article.id))
+    parse(finishSummary(direct.job_id, '직접 재생성'))
+    assert.equal(query(`select overview from public.articles where id='${first.article.id}'`), '직접 재생성')
 
     const bundleUser = '55555555-5555-4555-8555-555555555555'
     query(`insert into auth.users values ('${bundleUser}', 'bundle@example.com', now());

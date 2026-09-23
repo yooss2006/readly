@@ -11,7 +11,7 @@ export type Article = {
 }
 
 export type BeginResult = {
-  state: 'cached' | 'pending' | 'started' | 'daily_limit' | 'monthly_limit' | 'not_invited' | 'scrape_paused'
+  state: 'cached' | 'pending' | 'started' | 'daily_limit' | 'monthly_limit' | 'not_invited' | 'scrape_paused' | 'not_found'
   article?: Article
   job_id?: string
   phase?: 'summary' | 'audio'
