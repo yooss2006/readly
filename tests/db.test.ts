@@ -47,6 +47,8 @@ test('실제 PostgreSQL에서 초대, 재사용, 부분 성공, 한도 및 동�
     run('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-f', file])
     writeFileSync(file, readFileSync(join(ROOT, 'supabase/migrations/202609230002_regeneration.sql'), 'utf8'))
     run('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-f', file])
+    writeFileSync(file, readFileSync(join(ROOT, 'supabase/migrations/202609230003_invitations.sql'), 'utf8'))
+    run('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-f', file])
     assert.equal(query(`select has_function_privilege('service_role',
       'public.complete_summary(uuid,text,text,jsonb,integer,integer)', 'EXECUTE')`), 't')
     query(`insert into auth.users values
@@ -112,6 +114,42 @@ test('실제 PostgreSQL에서 초대, 재사용, 부분 성공, 한도 및 동�
     const direct = parse(beginRegeneration(OWNER, first.article.id))
     parse(finishSummary(direct.job_id, '직접 재생성'))
     assert.equal(query(`select overview from public.articles where id='${first.article.id}'`), '직접 재생성')
+
+    // A token adds one ordinary member, including when two people redeem concurrently.
+    const invite = (user: string, hash: string) => `select public.create_invitation('${user}', '${hash}')::text`
+    const redeem = (user: string, hash: string) => `select public.redeem_invitation('${user}', '${hash}')::text`
+    const revoke = (user: string, id: string) => `select public.revoke_invitation('${user}', '${id}')::text`
+    const hash = 'a'.repeat(64)
+    assert.equal(parse(invite(USER, hash)).state, 'not_allowed')
+    assert.throws(() => query(`set role authenticated; ${invite(OWNER, hash)}`))
+    const created = parse(invite(OWNER, hash))
+    assert.equal(created.state, 'created')
+    assert.equal(parse(redeem(USER, hash)).state, 'already_invited')
+    assert.equal(parse(redeem(DENIED, hash)).state, 'redeemed')
+    assert.equal(parse(redeem(DENIED, hash)).state, 'invalid')
+    assert.equal(query(`select count(*) from public.allowed_emails where email='no@example.com'`), '1')
+    assert.equal(parse(requestRegeneration(DENIED, bundle.article.id)).state, 'requested')
+    assert.equal(parse(beginRegeneration(DENIED, bundle.article.id)).state, 'not_invited')
+    assert.equal(parse(revoke(OWNER, created.id)).state, 'not_active')
+    const canceledHash = 'b'.repeat(64)
+    const canceled = parse(invite(OWNER, canceledHash))
+    assert.equal(parse(revoke(USER, canceled.id)).state, 'not_allowed')
+    assert.equal(parse(revoke(OWNER, canceled.id)).state, 'revoked')
+    assert.equal(parse(redeem(OTHER, canceledHash)).state, 'invalid')
+    const expiredHash = 'c'.repeat(64)
+    const expired = parse(invite(OWNER, expiredHash))
+    query(`update public.invitation_links set expires_at=now()-interval '1 second' where id='${expired.id}'`)
+    assert.equal(parse(redeem(OTHER, expiredHash)).state, 'invalid')
+
+    const raceHash = 'd'.repeat(64)
+    parse(invite(OWNER, raceHash))
+    const invitees = ['77777777-7777-4777-8777-777777777777', '88888888-8888-4888-8888-888888888888']
+    query(`insert into auth.users values
+      ('${invitees[0]}', 'reader1@example.com', now()),
+      ('${invitees[1]}', 'reader2@example.com', now())`)
+    const race = await Promise.all(invitees.map(id => queryAsync(redeem(id, raceHash)).then(JSON.parse)))
+    assert.deepEqual(race.map(result => result.state).sort(), ['invalid', 'redeemed'])
+    assert.equal(query(`select count(*) from public.allowed_emails where email in ('reader1@example.com', 'reader2@example.com')`), '1')
 
     const bundleUser = '55555555-5555-4555-8555-555555555555'
     query(`insert into auth.users values ('${bundleUser}', 'bundle@example.com', now());

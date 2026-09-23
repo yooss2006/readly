@@ -7,14 +7,14 @@ Readly는 초대된 사용자가 공개 웹 글을 한국어로 요약하고 음
 ## 시작하기
 
 1. `npm install`을 실행합니다.
-2. Supabase 프로젝트에서 Google 로그인을 켭니다. Google OAuth에 Supabase가 표시하는 콜백 URL을 등록합니다. Supabase Auth의 Site URL은 로컬에서 `http://localhost:3000`, Redirect URLs에는 `http://localhost:3000/auth/callback`을 추가합니다. 배포할 때는 Vercel 주소와 `/auth/callback`도 추가합니다.
-3. Supabase SQL Editor에서 [초기 마이그레이션](supabase/migrations/202609230001_initial.sql)을 실행합니다. 초대할 이메일을 다음처럼 등록합니다.
+2. Supabase 프로젝트에서 Google 로그인을 켭니다. Google OAuth에 Supabase가 표시하는 콜백 URL을 등록합니다. Supabase Auth의 Site URL은 로컬에서 `http://localhost:3000`, Redirect URLs에는 `http://localhost:3000/auth/callback`과 `http://localhost:3000/auth/invite-callback`을 추가합니다. 배포할 때도 Vercel 주소의 두 콜백 경로를 추가합니다.
+3. Supabase SQL Editor에서 [초기 마이그레이션](supabase/migrations/202609230001_initial.sql)을 실행합니다. 방장 이메일을 등록합니다.
 
    ```sql
-   insert into public.allowed_emails(email) values (lower('person@example.com'));
+   insert into public.allowed_emails(email) values (lower('yoofh2006@gmail.com'));
    ```
 
-   [재생성 마이그레이션](supabase/migrations/202609230002_regeneration.sql)도 초기 마이그레이션 다음에 실행합니다. 방장 계정 `yoofh2006@gmail.com`을 초대 목록에 등록해야 방장 전용 재생성을 사용할 수 있습니다.
+   [재생성 마이그레이션](supabase/migrations/202609230002_regeneration.sql)과 [초대장 마이그레이션](supabase/migrations/202609230003_invitations.sql)을 순서대로 실행합니다. 이후 방장은 홈에서 초대장을 만들고 링크를 공유할 수 있습니다. 링크는 한 사람만 사용할 수 있고 7일 뒤 만료됩니다. 발급 시에만 전체 링크가 표시되므로 바로 복사하세요. 방장은 사용 전 링크를 취소할 수 있습니다.
 
 4. `.env.example`을 `.env`로 복사하고 값을 채웁니다. Supabase 프로젝트의 URL과 publishable key는 공개 설정이며, secret key는 서버 전용 비밀값입니다. OpenAI와 Firecrawl 키도 서버에서만 사용합니다. 키를 채팅이나 Git에 넣지 마세요.
    기존 로컬 파일에 `OPENAPI_KEY`와 `FIRECRAWL_KEY`가 있다면 앱이 각각 OpenAI와 Firecrawl 키의 별칭으로 읽습니다. 새 설정에는 아래 표의 이름을 사용하세요.
@@ -31,13 +31,13 @@ Readly는 초대된 사용자가 공개 웹 글을 한국어로 요약하고 음
 
 ## 테스트
 
-`npm test`는 URL·비용 규칙과 실제 로컬 PostgreSQL의 동시 요청, 초대 제한, 일일·월 한도, 부분 성공, 재생성 요청과 권한을 검사합니다. PostgreSQL의 `initdb`, `pg_ctl`, `psql`이 없으면 DB 테스트는 건너뜁니다. `npm run typecheck`와 `npm run build`로 TypeScript와 프로덕션 빌드를 확인합니다.
+`npm test`는 URL·비용 규칙과 실제 로컬 PostgreSQL의 동시 요청, 초대장 1회 사용·취소·만료·권한, 일일·월 한도, 부분 성공, 재생성 요청을 검사합니다. PostgreSQL의 `initdb`, `pg_ctl`, `psql`이 없으면 DB 테스트는 건너뜁니다. `npm run typecheck`와 `npm run build`로 TypeScript와 프로덕션 빌드를 확인합니다.
 
 외부 키를 설정한 뒤 `npm run smoke`로 실제 공개 글을 추출하고 OpenAI 요약·음성 생성을 확인합니다. 이 작업은 API 사용량을 소비합니다. 출력된 요약에서 원문의 핵심과 수치·조건·부정 표현이 보존됐는지 직접 확인하세요.
 
 ## 배포
 
-Vercel Hobby에서 이 저장소를 Next.js 프로젝트로 연결하고 위 환경 변수를 등록합니다. Supabase Auth에 배포 도메인과 `/auth/callback`을 등록한 뒤 배포합니다. 배포된 앱에서 초대 계정 로그인, 요약, 음성, 결과 재조회, 비초대 계정 거절을 확인합니다.
+Vercel Hobby에서 이 저장소를 Next.js 프로젝트로 연결하고 위 환경 변수를 등록합니다. Supabase Auth에 배포 도메인의 `/auth/callback`과 `/auth/invite-callback`을 등록한 뒤 배포합니다. 배포된 앱에서 방장 초대장 발급·취소, 신규 사용자의 편지 화면·Google 로그인·링크 1회 사용, 요약, 음성, 결과 재조회, 비초대 계정 거절을 확인합니다.
 
 OpenAI API 프로젝트의 **강제 월 지출 한도**는 앱의 24,000원 중단 지점보다 낮게 설정하고, 그보다 앞선 지출 알림도 등록합니다. 강제 한도는 적용 지연으로 소액 초과할 수 있습니다. Firecrawl 무료 크레딧이 소진되면 새 본문 추출을 중단합니다. 크레딧이 복구되면 Supabase SQL Editor에서 `update public.app_state set firecrawl_paused = false where id = true;`를 실행합니다.
 
