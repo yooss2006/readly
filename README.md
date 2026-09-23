@@ -7,7 +7,7 @@ Readly는 초대된 사용자가 공개 웹 글을 한국어로 요약하고 음
 ## 시작하기
 
 1. `npm install`을 실행합니다.
-2. Supabase 프로젝트에서 Google 로그인을 켭니다. Google OAuth에 Supabase가 표시하는 콜백 URL을 등록합니다. Supabase Auth의 Site URL은 로컬에서 `http://localhost:3000`, Redirect URLs에는 `http://localhost:3000/auth/callback`과 `http://localhost:3000/auth/invite-callback`을 추가합니다. 배포할 때도 Vercel 주소의 두 콜백 경로를 추가합니다.
+2. Supabase 프로젝트에서 Google 로그인을 켭니다. Google OAuth에는 Supabase가 표시하는 콜백 URL을 등록합니다. Supabase Auth의 Site URL은 `https://readly-omega.vercel.app/`로 설정합니다. Redirect URLs에는 로컬용 `http://localhost:3000/auth/callback`, `http://localhost:3000/auth/invite-callback`과 배포용 `https://readly-omega.vercel.app/auth/callback`, `https://readly-omega.vercel.app/auth/invite-callback`을 각각 추가합니다.
 3. Supabase SQL Editor에서 [초기 마이그레이션](supabase/migrations/202609230001_initial.sql)을 실행합니다. 방장 이메일을 등록합니다.
 
    ```sql
@@ -37,7 +37,7 @@ Readly는 초대된 사용자가 공개 웹 글을 한국어로 요약하고 음
 
 ## 배포
 
-Vercel Hobby에서 이 저장소를 Next.js 프로젝트로 연결하고 위 환경 변수를 등록합니다. Supabase Auth에 배포 도메인의 `/auth/callback`과 `/auth/invite-callback`을 등록한 뒤 배포합니다. 배포된 앱에서 방장 초대장 발급·취소, 신규 사용자의 편지 화면·Google 로그인·링크 1회 사용, 요약, 음성, 결과 재조회, 비초대 계정 거절을 확인합니다.
+현재 알려진 배포 도메인은 [readly-omega.vercel.app](https://readly-omega.vercel.app/)입니다. Vercel Hobby에서 이 저장소를 Next.js 프로젝트로 연결하고 위 환경 변수를 등록합니다. Supabase Auth에 위 두 배포용 Redirect URL을 등록한 뒤 배포합니다. 배포된 앱에서 방장 초대장 발급·취소, 신규 사용자의 편지 화면·Google 로그인·링크 1회 사용, 요약, 음성, 결과 재조회, 비초대 계정 거절을 확인합니다.
 
 OpenAI API 프로젝트의 **강제 월 지출 한도**는 앱의 24,000원 중단 지점보다 낮게 설정하고, 그보다 앞선 지출 알림도 등록합니다. 강제 한도는 적용 지연으로 소액 초과할 수 있습니다. Firecrawl 무료 크레딧이 소진되면 새 본문 추출을 중단합니다. 크레딧이 복구되면 Supabase SQL Editor에서 `update public.app_state set firecrawl_paused = false where id = true;`를 실행합니다.
 
