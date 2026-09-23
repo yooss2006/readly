@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import type { RegenerationRequest } from '@/lib/regeneration'
+import { InvitationManager } from './invitation-manager'
 
 type DisplayArticle = {
   id: string; url: string; title: string | null; overview: string | null;
@@ -155,7 +156,7 @@ export function ReadlyApp({ email, owner, initialArticles, initialRegeneration }
   return <main className="shell">
     <header className="topbar">
       <div className="brand">Readly<span className="brand-dot">.</span></div>
-      <div className="account"><span>{email}</span>{owner && <a href="#regeneration-requests" className="request-link">재생성 요청 {requests.length}건</a>}<form action="/auth/signout" method="post"><button type="submit" className="text-button">로그아웃</button></form></div>
+      <div className="account"><span>{email}</span>{owner && <a href="#invitations" className="request-link">초대장</a>}{owner && <a href="#regeneration-requests" className="request-link">재생성 요청 {requests.length}건</a>}<form action="/auth/signout" method="post"><button type="submit" className="text-button">로그아웃</button></form></div>
     </header>
     <section className="hero">
       <p className="eyebrow">당신의 읽기를 위한 짧은 준비</p>
@@ -172,6 +173,7 @@ export function ReadlyApp({ email, owner, initialArticles, initialRegeneration }
       </form>
       {message && <p className="notice" role="status">{message}</p>}
     </section>
+    {owner && <InvitationManager />}
     {owner && <section className="regeneration-queue" id="regeneration-requests">
       <div className="queue-heading"><div><p className="eyebrow">관리</p><h2>재생성 요청 <span>{requests.length}</span></h2></div>
         {requests.length > 0 && <button className="secondary" type="button" disabled={busy} onClick={() => void regenerateAll()}>일괄 재생성</button>}
