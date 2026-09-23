@@ -22,7 +22,7 @@
 
 ## 초기 MVP 구현 선택 (2026-09-23)
 
-- 요약은 `gpt-4.1-mini`의 구조화된 JSON 출력, 음성은 `tts-1`의 MP3 출력으로 시작한다. 요약 모델은 지시 준수와 비용의 균형을, 음성 모델은 입력 문자 수로 비용을 미리 계산할 수 있는 점을 기준으로 골랐다. 실제 한국어 품질은 스모크 테스트에서 확인하고 재평가한다. [GPT-4.1 Mini](https://developers.openai.com/api/docs/models/gpt-4.1-mini), [TTS-1](https://developers.openai.com/api/docs/models/tts-1)
+- 요약은 `gpt-6-luna`의 구조화된 JSON 출력과 중간 수준 추론을, 음성은 `tts-1`의 MP3 출력을 사용한다. 실제 CSS 기술 글 검증에서 기존 `gpt-4.1-mini`는 코드상 대상 요소를 기준 요소로 잘못 읽었다. `gpt-5.4-mini`도 재실행 시 같은 오류가 발생했지만, `gpt-6-luna`의 검증 결과는 코드의 대상 요소와 동작 조건을 올바르게 구분했다. 요약 비용 계산에는 Luna의 입력·캐시 기록·캐시 적중·출력 요금을 반영한다. [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna), [TTS-1](https://developers.openai.com/api/docs/models/tts-1)
 - 비용 환산에는 `USD_KRW_RATE`를 쓴다. 기본값 1,700원/USD는 예산 예약을 위한 보수적 설정값이며, 실제 환율이 아니다. 운영자는 배포 시 현재 환율보다 낮지 않게 설정한다.
 - 한국 시간으로 일일·월별 사용 기간을 계산한다. 생성 시작 전에 최악 비용을 예약하고, 응답에 사용량이 있으면 실제 요약 비용으로 정산한다. 사용량을 확인할 수 없는 실패와 중단된 작업은 예약액을 보수적으로 비용에 남긴다.
 - `articles`는 URL별 결과를 공유하고, `generation_jobs`는 성공한 생성 횟수와 비용을 기록한다. PostgreSQL 함수는 단일 상태 행을 잠가 동시 생성·한도 결정을 직렬화한다. 10분 동안 유효한 URL별 작업 임대가 끝나면 다음 요청에서 회수한다.

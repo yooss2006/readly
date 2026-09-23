@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { normalizeArticleUrl } from '../lib/url'
-import { speechCostKrw, speechReserveKrw, summaryCostKrw, summaryReserveKrw } from '../lib/cost'
+import { MAX_SUMMARY_OUTPUT_TOKENS, speechCostKrw, speechReserveKrw, summaryCostKrw, summaryReserveKrw } from '../lib/cost'
 import { speechText } from '../lib/external'
 
 test('같은 글의 추적 파라미터와 조각은 동일 URL로 정리한다', () => {
@@ -20,7 +20,12 @@ test('비공개 주소와 PDF는 본문 추출 전에 거절한다', () => {
 
 test('예약 금액은 허용한 최대 입력과 출력을 감당한다', () => {
   const rate = 1700
-  assert.ok(summaryReserveKrw(rate) >= summaryCostKrw(190_000, 1_200, rate))
+  assert.ok(summaryReserveKrw(rate) >= summaryCostKrw(190_000, MAX_SUMMARY_OUTPUT_TOKENS, rate))
+  assert.ok(summaryReserveKrw(rate) >= summaryCostKrw(190_000, MAX_SUMMARY_OUTPUT_TOKENS, rate, 0, 190_000))
+  assert.equal(summaryCostKrw(1_000_000, 0, rate), 170)
+  assert.equal(summaryCostKrw(1_000_000, 0, rate, 0, 1_000_000), 213)
+  assert.equal(summaryCostKrw(1_000_000, 0, rate, 1_000_000), 17)
+  assert.equal(summaryCostKrw(0, 1_000_000, rate), 850)
   assert.ok(speechReserveKrw(rate) >= speechCostKrw(4_096, rate))
   assert.equal(speechCostKrw(1_000, rate), 26)
 })
