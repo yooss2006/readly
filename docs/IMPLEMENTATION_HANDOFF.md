@@ -10,6 +10,7 @@
 - 이번 변경에서 `npm run typecheck`와 `npm run build`가 통과했다. 브라우저에서 데스크톱·모바일 초대장 화면의 WebGL 렌더링과 편지 열기 동작을 확인했다. 로컬 PostgreSQL 바이너리가 없어 `npm test`의 DB 통합 테스트는 건너뛰었고, 별도 PostgreSQL 호환 로컬 실행에서 초대장 SQL의 권한·1회 사용·취소·만료를 확인했다. 실제 PostgreSQL의 동시 수락 경쟁과 Google OAuth 연결은 아직 확인하지 못했다.
 - [재생성 마이그레이션](../supabase/migrations/202609230002_regeneration.sql)을 추가했다. 로컬 PostgreSQL 테스트에서 권한, 중복 요청, 실패 시 기존 결과 보존, 성공 시 요청·음성 해제를 확인했다. `npm run typecheck`와 `npm run build`도 통과했다.
 - `readly` Supabase 프로젝트에서 방장 계정과 `allowed_emails` 등록을 확인하고 초대장 마이그레이션을 적용했다(원격 등록명 `20260923093520_invitations`). `invitation_links`의 RLS가 켜져 있고 정책은 0개이며, 초대장 함수는 `service_role`만 실행할 수 있다. 운영 PostgreSQL 트랜잭션에서 방장 발급, 미등록 방장 거절, 기존 회원의 링크 미소비, 취소·만료 후 사용 거절을 확인하고 롤백했다. 초대장 테스트 행은 남지 않았다.
+- 사용자가 배포 도메인을 `https://readly-omega.vercel.app/`로 알려주었다. 운영 Supabase Auth의 Site URL과 두 Redirect URL은 [README](../README.md#시작하기)에 적었다. 설정 적용 여부와 실제 Vercel 응답은 아직 확인하지 못했다.
 - 원격의 기존 테이블과 재생성 관련 테이블은 확인했으나, 기존 마이그레이션 적용 이력과 실제 Google OAuth, 새 계정의 수락 및 동시 수락 경쟁, 외부 서비스 스모크 테스트, Vercel 배포 상태는 확인하지 않았다.
 
 ## 초기 구현 목표 (작성 당시)
@@ -79,6 +80,6 @@
 ## 현재 확인 필요 사항
 
 - 운영 DB에는 초기·재생성 관련 테이블이 있으나 해당 마이그레이션의 기록은 조회되지 않았다. 저장소 파일명 `202609230003_invitations.sql`과 원격 적용 이력 `20260923093520_invitations`의 버전도 다르다. 향후 Supabase CLI로 마이그레이션을 밀기 전에 이력과 실제 스키마를 대조한다.
-- Supabase Auth Redirect URLs에 사용 주소의 `/auth/invite-callback`을 등록하거나 이미 허용되는지 확인한다. Supabase 연결 도구에 Auth URL 설정 조회·변경 기능이 없어 이 항목은 미완료다. 실제 Google 계정으로 초대장 1회 사용·취소, 일반 사용자 권한, 편지 화면을 확인한다.
+- Supabase Auth Redirect URLs에 `https://readly-omega.vercel.app/auth/invite-callback`과 기존 로그인용 `https://readly-omega.vercel.app/auth/callback`을 등록하거나 이미 허용되는지 확인한다. Supabase 연결 도구에 Auth URL 설정 조회·변경 기능이 없어 이 항목은 미완료다. 실제 Google 계정으로 초대장 1회 사용·취소, 일반 사용자 권한, 편지 화면을 확인한다.
 - 허용·비허용 Google 계정으로 로그인 제한을 확인한다. 일반 사용자 요청, 방장 단건·일괄·즉시 재생성, 다른 계정에서 갱신된 공유 요약 확인, 기존 음성 해제를 실제 브라우저에서 검증한다.
 - Firecrawl·OpenAI 스모크 테스트와 요약 품질 확인을 현재 환경에서 다시 수행할지 결정한다. Vercel 배포 상태와 배포된 앱의 핵심 동작, OpenAI 강제 지출 상한·알림 설정도 확인한다.
